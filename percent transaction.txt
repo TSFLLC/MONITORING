@@ -1,0 +1,93 @@
+
+
+--Find percent transaction
+
+SELECT 
+   session_id as SPID, command, a.text AS Query, start_time, percent_complete,
+   dateadd(second,estimated_completion_time/1000, getdate()) as estimated_completion_time
+FROM sys.dm_exec_requests r 
+   CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) a 
+WHERE r.command LIKE %comand name%
+
+
+
+https://github.com/microsoft/azure-sql-tips/wiki/Azure-SQL-Database-tips
+
+
+
+----------------------------------INDEXES REBUILD
+
+--Rebuild index with row compression
+USE DB1;  
+GO  
+ALTER TABLE [dbo].[tableName] REBUILD PARTITION = ALL  
+WITH (DATA_COMPRESSION = ROW);   
+
+
+---Rebuild all index on the table with no compression
+ALTER INDEX ALL ON [TableName]
+REBUILD WITH (FILLFACTOR = 80, SORT_IN_TEMPDB = ON,
+              STATISTICS_NORECOMPUTE = ON)
+
+
+--Rebuild single index on the table with no compression
+ALTER INDEX  PK_Nmae ON TableNmae
+REBUILD
+
+----------------------------------INDEXES REORGANIZE
+
+--Reorganize all index on the table
+ALTER INDEX ALL ON [Table Name] 
+REORGANIZE;
+
+--Reorganize single index on the table
+ALTER INDEX [IndexName]  ON  [Table Name ]
+REORGANIZE;
+
+
+
+---Find fragmentation
+SELECT DB_NAME(database_id) AS [Database Name],
+    OBJECT_NAME(object_id, database_id) AS [Table Name], 
+    [index_type_desc] AS [Index Type], 
+    page_count AS [Number Of Pages],
+    [avg_fragmentation_in_percent] AS [Percentage Of Fragementation]
+FROM sys.dm_db_index_physical_stats(NULL, NULL, NULL, NULL, 'SAMPLED')
+order by [Percentage Of Fragementation] desc
+
+
+--track transaction sorted by duration
+SELECT st.session_id,
+       dt.database_transaction_begin_time,
+       DATEDIFF(second, dt.database_transaction_begin_time, CURRENT_TIMESTAMP) AS transaction_duration_seconds,
+       dt.database_transaction_log_bytes_used,
+       dt.database_transaction_log_bytes_reserved,
+       st.is_user_transaction,
+       st.open_transaction_count,
+       ib.event_type,
+       ib.parameters,
+       ib.event_info
+FROM sys.dm_tran_database_transactions AS dt
+INNER JOIN sys.dm_tran_session_transactions AS st
+ON dt.transaction_id = st.transaction_id
+OUTER APPLY sys.dm_exec_input_buffer(st.session_id, default) AS ib
+WHERE dt.database_id = DB_ID()
+ORDER BY transaction_duration_seconds DESC;
+
+
+
+--create and drop primary key
+
+---DROP PRIMARY KEY
+ALTER TABLE [TableName ]
+DROP CONSTRAINT PK_name;
+-- add new auto incremented field
+ALTER TABLE [TableName ]
+ADD ID INT IDENTITY(1,1) NOT NULL
+
+-- create new primary key constraint
+ALTER TABLE [TableName ]
+ADD CONSTRAINT PK_Name PRIMARY KEY  (pmid, persionId);
+GO
+
+
