@@ -9,7 +9,7 @@ FROM sys.dm_exec_requests r
    CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) a 
 WHERE r.command LIKE %comand name%
 
-
+index mantenancejobs: https://techcommunity.microsoft.com/t5/azure-database-support-blog/automating-azure-sql-db-index-and-statistics-maintenance-using/ba-p/368974
 
 https://github.com/microsoft/azure-sql-tips/wiki/Azure-SQL-Database-tips
 
