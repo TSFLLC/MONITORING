@@ -1,0 +1,61 @@
+--REPLICATION MONITOR
+
+USE [FLX_DBA]
+GO
+
+/****** Object:  StoredProcedure [dbo].[DBA_MonitorReplication]    Script Date: 4/28/2023 8:55:33 PM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+CREATE PROC [dbo].[DBA_MonitorReplication]
+AS
+BEGIN
+
+    DECLARE @msg VARCHAR(200);
+    DECLARE @table NVARCHAR(MAX);
+    DECLARE @tableHTML NVARCHAR(MAX);
+    SET NOCOUNT ON;
+
+    SET @msg = 'Check Replication';
+    SET @table = N'';
+
+
+    SELECT 'DBName' DBName,
+           DATEDIFF(hh, MAX([CreateDate]), GETDATE()) 'HoursDifferenceFromNow'
+    INTO #temp1
+    From [DBName]..[Table Name] (NOLOCK)
+
+   
+
+    SELECT @table
+        = @table + N'<tr>' + N'<td>' + DBName + N'</td>' + N'<td>' + CONVERT(VARCHAR(10), HoursDifferenceFromNow)
+          + N'</td></tr>'
+    FROM #temp1
+    WHERE HoursDifferenceFromNow > 1;
+
+    --SELECT @table
+    IF EXISTS (SELECT * FROM #temp1 WHERE HoursDifferenceFromNow > 1)
+    BEGIN
+        SET @tableHTML
+            = N'<h3><font color="red">Check Replication on FLXMI6 Database:  </h3>'
+              + N'<table border="1" align="left" cellpadding="6" cellspacing="0" style="text-align:left;">'
+              + N'<tr style="font-size:12px;"><th>DBName</th><th>HoursDifferenceFromNow</th></tr>' + @table
+              + N'</table>';
+
+        --SELECT @tableHTML
+        EXEC msdb.dbo.sp_send_dbmail @recipients = 'fits-dba@accelya.com',
+                                     @body = @tableHTML,
+                                     @body_format = 'HTML',
+                                     @subject = @msg;
+    END;
+
+   -- SELECT * FROM #temp1
+    DROP TABLE #temp1;
+END;
+GO
