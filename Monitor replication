@@ -1,14 +1,8 @@
 --REPLICATION MONITOR
 
-USE [FLX_DBA]
+USE [DBName]
 GO
 
-/****** Object:  StoredProcedure [dbo].[DBA_MonitorReplication]    Script Date: 4/28/2023 8:55:33 PM ******/
-SET ANSI_NULLS ON
-GO
-
-SET QUOTED_IDENTIFIER ON
-GO
 
 
 
