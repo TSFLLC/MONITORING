@@ -43,7 +43,7 @@ BEGIN
               + N'</table>';
 
         --SELECT @tableHTML
-        EXEC msdb.dbo.sp_send_dbmail @recipients = 'fits-dba@accelya.com',
+        EXEC msdb.dbo.sp_send_dbmail @recipients = 'email',
                                      @body = @tableHTML,
                                      @body_format = 'HTML',
                                      @subject = @msg;
