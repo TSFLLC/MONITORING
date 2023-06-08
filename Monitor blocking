@@ -1,0 +1,154 @@
+USE [DBA]
+GO
+
+/****** Object:  StoredProcedure [dbo].[DBA_Monitor_Blocking]     ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+CREATE PROC [dbo].[DBA_Monitor_Blocking]
+AS
+    BEGIN
+
+        DECLARE @mydate DATETIME;
+        DECLARE @server VARCHAR(20);
+        DECLARE @msg VARCHAR(200);
+        DECLARE @oper_email NVARCHAR(200);
+        DECLARE @subj NVARCHAR(MAX);
+
+        DECLARE @SESSION_ID SMALLINT;
+        DECLARE @wait_time_in_mins INT;
+        DECLARE @wait_time INT;
+        DECLARE @OCCURRED VARCHAR(200);
+        DECLARE @BLOCKING_SESSION_ID INT;
+
+        DECLARE @LOGIN VARCHAR(MAX);
+        DECLARE @SPID INT;
+
+        DECLARE @DBA_Monitor_Blocking TABLE
+            (
+              [OCCURRED] [DATETIME] NULL ,
+              [SESSION_ID] [INT] NULL ,
+              [BLOCKING_SESSION_ID] [INT] NULL ,
+              [WAIT_TIME_IN_MINS] [INT] NULL ,
+              [WAIT_TIME] [INT] NULL
+            );
+
+        DECLARE @sp_who2 TABLE
+            (
+              SPID INT ,
+              Status VARCHAR(MAX) ,
+              LOGIN VARCHAR(MAX) ,
+              HostName VARCHAR(MAX) ,
+              BlkBy VARCHAR(MAX) ,
+              DBName VARCHAR(MAX) ,
+              Command VARCHAR(MAX) ,
+              CPUTime INT ,
+              DiskIO INT ,
+              LastBatch VARCHAR(MAX) ,
+              ProgramName VARCHAR(MAX) ,
+              SPID_1 INT ,
+              REQUESTID INT
+            );
+
+        SET NOCOUNT ON;
+
+        INSERT  INTO @DBA_Monitor_Blocking
+                ( [OCCURRED] ,
+                  [SESSION_ID] ,
+                  [BLOCKING_SESSION_ID] ,
+                  [WAIT_TIME_IN_MINS] ,
+                  [WAIT_TIME]
+                )
+                SELECT  GETDATE() ,
+                        session_id ,
+                        blocking_session_id ,
+                        ( ( wait_time / 1000 ) / 60 ) ,
+                        wait_time
+                FROM    sys.dm_exec_requests
+                WHERE   blocking_session_id <> 0
+                        AND ( ( wait_time / 1000 ) / 60 ) > 1;  -- if blocking happens for more than 1 min
+
+        IF @@ROWCOUNT <> 0
+            BEGIN
+
+	/**  Get culprit process info */
+
+                SELECT  @SPID = spid
+                FROM    master..sysprocesses a
+                WHERE   EXISTS ( SELECT b.*
+                                 FROM   master..sysprocesses b
+                                 WHERE  b.blocked > 0
+                                        AND b.blocked = a.spid )
+                        AND NOT EXISTS ( SELECT b.*
+                                         FROM   master..sysprocesses b
+                                         WHERE  b.blocked > 0
+                                                AND b.spid = a.spid )
+                ORDER BY spid;
+
+        --SELECT  'culprit @spid is:  ' + CONVERT(VARCHAR(20), @SPID);
+
+                INSERT  INTO @sp_who2
+                        EXEC sp_who2;
+
+                SELECT  b.LOGIN ,
+                        b.SPID
+                FROM    @DBA_Monitor_Blocking a
+                        INNER JOIN @sp_who2 b ON a.[BLOCKING_SESSION_ID] = b.SPID
+                WHERE   b.SPID = @SPID
+                     AND LOGIN <> 'spotmon' 
+                     --and Programname not like 'SQLAgent - TSQL JobStep%'; --  To exclude job FLXTKT_ARCHIVE_SCRUB and spotlight
+
+                IF @@ROWCOUNT <> 0
+                    BEGIN
+
+                        SELECT  @LOGIN = b.LOGIN ,
+                                @OCCURRED = b.LastBatch
+                        FROM    @DBA_Monitor_Blocking a
+                                INNER JOIN @sp_who2 b ON a.SESSION_ID = b.SPID
+                        WHERE   a.[BLOCKING_SESSION_ID] = @SPID
+                                AND LOGIN <> 'spotmon';
+              
+                        SELECT  @SESSION_ID = [SESSION_ID] ,
+                                @BLOCKING_SESSION_ID = [BLOCKING_SESSION_ID] ,
+                                @wait_time_in_mins = [WAIT_TIME_IN_MINS] ,
+                                @wait_time = [WAIT_TIME]
+                        FROM    @DBA_Monitor_Blocking
+                        WHERE   [BLOCKING_SESSION_ID] = @SPID;
+
+                        SET @msg = N'Blocking Information:
+				Blocking Started Since ' + CONVERT(NVARCHAR(200), @OCCURRED)
+                            + ' 
+				Blocked By Culprit SPID ' + CONVERT(NVARCHAR(200), @SPID) + ' 
+				Culprit Login is ' + CONVERT(NVARCHAR(200), @LOGIN) + ' 
+				Blocking Other Processes For Duration Of  '
+                            + CONVERT(NVARCHAR(200), @wait_time_in_mins)
+                            + ' Mins';
+                       -- SELECT  @subj;
+			
+                        SET @mydate = GETDATE();
+                        SET @server = @@servername;
+  
+	   
+                        SET @subj = 'MSSQL Server '
+                            + CONVERT(VARCHAR(100), SERVERPROPERTY('machinename'))
+                            + ' Blocked Processes Found On: '
+                            + CONVERT(VARCHAR(23), @mydate); 
+                        --SELECT  @msg;
+                SET @oper_email = ( SELECT  email_address
+                                    FROM    msdb.dbo.sysoperators
+                                    WHERE   name = 'DBA_Operator'
+                                  );
+
+                EXEC msdb.dbo.sp_send_dbmail @recipients ='email', -- @oper_email,
+                    @body = @msg, @subject = @subj; 
+
+                    END;
+
+            END;
+    END;
+    
+GO
