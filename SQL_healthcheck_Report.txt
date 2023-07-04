@@ -1,4 +1,23 @@
 
+---This should be run for jobs------
+
+Use DBName
+Go
+
+Exec [dbo].[usp_SQLhealthcheck_report]
+ 
+ @server = 'ServerName', 
+ @MailProfile = 'Your mail profile', 
+ @MailID = 'Email to receive notification'
+
+
+
+
+
+
+
+----------------------Store procedure to run as it is-------------------------------------------
+
 
 /***************************** Report Details *******************************/
 -- Tested: SQL Server 2008 R2, 2012, 2014, 2016 and 2019  
