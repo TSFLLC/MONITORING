@@ -1,0 +1,6 @@
+ Send-MailMessage -To 'put the receiving email here' -From 'Put the outgoing email here' -Subject 'Alert From Server Name' -Body 'SQL Server stops/Runs'  -Smtp Server 'Put the SMTP Server Name here' -Port 25
+---Path for the PowerShell Script (Task Scheduler-Action)
+---Program/Script: PowerShell.exe
+---Add Argument:
+-NoProfile -ExecutionPolicy Bypass -File "C:\SQL_Media\Alerts\ServiceAlert.ps1" -Output "HTML"
+----Start In: Path containing the script: C:\SQL_Media\Alerts
